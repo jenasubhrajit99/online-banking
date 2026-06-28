@@ -1,36 +1,25 @@
 package com.subhrajit.onlinebanking.config;
 
 import com.subhrajit.onlinebanking.service.UserServiceImpl.UserSecurityService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import java.security.SecureRandom;
 
-/**
- 
- * Project : online-banking
- * User: subhrajit
- * Email: jenasubhrajit99@gmail.com
- * To change this template use File | Settings | File Templates.
- */
-@SuppressWarnings("deprecation")
 @Configuration
-@EnableWebSecurity
-@EnableGlobalMethodSecurity( prePostEnabled = true)
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
+@EnableMethodSecurity(prePostEnabled = true)
+public class SecurityConfig {
 
-//    @Autowired
-//    private Environment env;
+    private static final String SALT = "salt";
 
-    private static final String SALT = "salt"; // Salt should be protected carefully
     private static final String[] PUBLIC_MATCHERS = {
             "/webjars/**",
             "/css/**",
@@ -39,39 +28,67 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             "/",
             "/about/**",
             "/contact/**",
-            "/error/**/*",
+            "/error/**",
             "/console/**",
             "/signup"
     };
-    @Autowired
-    private UserSecurityService userSecurityService;
+
+    private final UserSecurityService userSecurityService;
+
+    public SecurityConfig(UserSecurityService userSecurityService) {
+        this.userSecurityService = userSecurityService;
+    }
 
     @Bean
-    public BCryptPasswordEncoder passwordEncoder() {
+    BCryptPasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(12, new SecureRandom(SALT.getBytes()));
     }
 
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests().
-//                antMatchers("/**").
-        antMatchers(PUBLIC_MATCHERS).
-                permitAll().anyRequest().authenticated();
+    @Bean
+    AuthenticationProvider authenticationProvider() {
 
-        http.csrf().disable().cors().disable()
-                .formLogin().failureUrl("/index?error").defaultSuccessUrl("/userFront").loginPage("/index").permitAll()
-                .and()
-                .logout().logoutRequestMatcher(new AntPathRequestMatcher("/logout")).logoutSuccessUrl("/index?logout").deleteCookies("remember-me").permitAll()
-                .and()
-                .rememberMe();
+        DaoAuthenticationProvider provider =
+                new DaoAuthenticationProvider();
+
+        provider.setUserDetailsService(userSecurityService);
+        provider.setPasswordEncoder(passwordEncoder());
+
+        return provider;
     }
 
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-    @Override
-    public void configure(AuthenticationManagerBuilder auth) throws Exception {
-//    	 auth.inMemoryAuthentication().withUser("user").password("password").roles("USER"); //This is in-memory authentication
-        auth.userDetailsService(userSecurityService).passwordEncoder(passwordEncoder());
+        http.authorizeHttpRequests(auth -> auth
+                        .requestMatchers(PUBLIC_MATCHERS).permitAll()
+                        .anyRequest().authenticated()
+                )
+
+                .formLogin(form -> form
+                        .loginPage("/index")
+                        .defaultSuccessUrl("/userFront", true)
+                        .failureUrl("/index?error")
+                        .permitAll()
+                )
+
+                .logout(logout -> logout
+                        .logoutRequestMatcher(
+                                new AntPathRequestMatcher("/logout"))
+                        .logoutSuccessUrl("/index?logout")
+                        .deleteCookies("remember-me")
+                        .permitAll()
+                )
+
+                .rememberMe(remember -> remember
+                        .userDetailsService(userSecurityService)
+                        .key("online-banking-secret-key")
+                )
+
+                .csrf(csrf -> csrf.disable())
+
+                .cors(cors -> cors.disable());
+
+        return http.build();
     }
-
 
 }

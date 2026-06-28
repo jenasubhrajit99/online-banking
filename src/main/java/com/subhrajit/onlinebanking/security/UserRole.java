@@ -3,7 +3,7 @@ package com.subhrajit.onlinebanking.security;
 
 import com.subhrajit.onlinebanking.entity.User;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 
 /**
  

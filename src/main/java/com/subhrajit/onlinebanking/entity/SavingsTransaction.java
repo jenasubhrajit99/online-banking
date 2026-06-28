@@ -1,6 +1,8 @@
 package com.subhrajit.onlinebanking.entity;
 
-import javax.persistence.*;
+import jakarta.persistence.Id;
+
+import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.util.Date;
 
